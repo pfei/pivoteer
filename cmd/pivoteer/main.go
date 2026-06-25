@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pfei/pivoteer/internal/asn"
 	"github.com/pfei/pivoteer/internal/certs"
 	"github.com/pfei/pivoteer/internal/dns"
 	"github.com/pfei/pivoteer/internal/whois"
@@ -54,5 +55,20 @@ func main() {
 		for _, sub := range subdomains {
 			fmt.Printf("  %s\n", sub)
 		}
+	}
+
+	fmt.Println("\n[ASN]")
+	if len(dnsResult.A) > 0 {
+		asnResult, err := asn.Lookup(dnsResult.A[0])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "asn error: %v\n", err)
+		} else {
+			fmt.Printf("  IP      : %s\n", asnResult.IP)
+			fmt.Printf("  Org     : %s\n", asnResult.Org)
+			fmt.Printf("  Country : %s\n", asnResult.Country)
+			fmt.Printf("  City    : %s\n", asnResult.City)
+		}
+	} else {
+		fmt.Println("  no A record found")
 	}
 }
