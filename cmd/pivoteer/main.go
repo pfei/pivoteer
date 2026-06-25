@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pfei/pivoteer/internal/certs"
 	"github.com/pfei/pivoteer/internal/dns"
 )
 
@@ -31,4 +32,14 @@ func main() {
 	fmt.Printf("  MX  : %v\n", dnsResult.MX)
 	fmt.Printf("  TXT : %v\n", dnsResult.TXT)
 	fmt.Printf("  NS  : %v\n", dnsResult.NS)
+
+	fmt.Println("\n[SUBDOMAINS])")
+	subdomains, err := certs.Lookup(*domain)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "certs error: %v\n", err)
+	} else {
+		for _, sub := range subdomains {
+			fmt.Printf("  %s\n", sub)
+		}
+	}
 }
