@@ -36,39 +36,76 @@ func main() {
 	fmt.Printf("  TXT : %v\n", dnsResult.TXT)
 	fmt.Printf("  NS  : %v\n", dnsResult.NS)
 
-	fmt.Println("\n[WHOIS]")
-	whoisResult, err := whois.Lookup(*domain)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "whois error: %v\n", err)
-	} else {
-		fmt.Printf("  Registrar   : %s\n", whoisResult.Registrar)
-		fmt.Printf("  Created     : %s\n", whoisResult.Created)
-		fmt.Printf("  Expires     : %s\n", whoisResult.Expires)
-		fmt.Printf("  Name servers: %s\n", strings.Join(whoisResult.NameServers, ", "))
+	// run WHOIS, CERTS, ASN concurrently
+	type whoisOut struct {
+		res whois.Result
+		err error
+	}
+	type certsOut struct {
+		res []string
+		err error
+	}
+	type asnOut struct {
+		res asn.Result
+		err error
 	}
 
-	fmt.Println("\n[SUBDOMAINS])")
-	subdomains, err := certs.Lookup(*domain)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "certs error: %v\n", err)
+	whoisCh := make(chan whoisOut, 1)
+	certsCh := make(chan certsOut, 1)
+	asnCh := make(chan asnOut, 1)
+
+	go func() {
+		res, err := whois.Lookup(*domain)
+		whoisCh <- whoisOut{res, err}
+	}()
+
+	go func() {
+		res, err := certs.Lookup(*domain)
+		certsCh <- certsOut{res, err}
+	}()
+
+	go func() {
+		if len(dnsResult.A) == 0 {
+			asnCh <- asnOut{}
+			return
+		}
+		res, err := asn.Lookup(dnsResult.A[0])
+		asnCh <- asnOut{res, err}
+	}()
+
+	// collect results
+	whoisResult := <-whoisCh
+	certsResult := <-certsCh
+	asnResult := <-asnCh
+
+	fmt.Println("\n[WHOIS]")
+	if whoisResult.err != nil {
+		fmt.Fprintf(os.Stderr, "whois error: %v\n", whoisResult.err)
 	} else {
-		for _, sub := range subdomains {
+		fmt.Printf("  Registrar   : %s\n", whoisResult.res.Registrar)
+		fmt.Printf("  Created     : %s\n", whoisResult.res.Created)
+		fmt.Printf("  Expires     : %s\n", whoisResult.res.Expires)
+		fmt.Printf("  Name servers: %s\n", strings.Join(whoisResult.res.NameServers, ", "))
+	}
+
+	fmt.Println("\n[SUBDOMAINS] (via hackertarget)")
+	if certsResult.err != nil {
+		fmt.Fprintf(os.Stderr, "certs error: %v\n", certsResult.err)
+	} else {
+		for _, sub := range certsResult.res {
 			fmt.Printf("  %s\n", sub)
 		}
 	}
 
 	fmt.Println("\n[ASN]")
-	if len(dnsResult.A) > 0 {
-		asnResult, err := asn.Lookup(dnsResult.A[0])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "asn error: %v\n", err)
-		} else {
-			fmt.Printf("  IP      : %s\n", asnResult.IP)
-			fmt.Printf("  Org     : %s\n", asnResult.Org)
-			fmt.Printf("  Country : %s\n", asnResult.Country)
-			fmt.Printf("  City    : %s\n", asnResult.City)
-		}
-	} else {
+	if asnResult.err != nil {
+		fmt.Fprintf(os.Stderr, "asn error: %v\n", asnResult.err)
+	} else if asnResult.res.IP == "" {
 		fmt.Println("  no A record found")
+	} else {
+		fmt.Printf("  IP      : %s\n", asnResult.res.IP)
+		fmt.Printf("  Org     : %s\n", asnResult.res.Org)
+		fmt.Printf("  Country : %s\n", asnResult.res.Country)
+		fmt.Printf("  City    : %s\n", asnResult.res.City)
 	}
 }
