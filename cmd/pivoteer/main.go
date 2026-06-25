@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pfei/pivoteer/internal/certs"
 	"github.com/pfei/pivoteer/internal/dns"
+	"github.com/pfei/pivoteer/internal/whois"
 )
 
 func main() {
@@ -32,6 +34,17 @@ func main() {
 	fmt.Printf("  MX  : %v\n", dnsResult.MX)
 	fmt.Printf("  TXT : %v\n", dnsResult.TXT)
 	fmt.Printf("  NS  : %v\n", dnsResult.NS)
+
+	fmt.Println("\n[WHOIS]")
+	whoisResult, err := whois.Lookup(*domain)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "whois error: %v\n", err)
+	} else {
+		fmt.Printf("  Registrar   : %s\n", whoisResult.Registrar)
+		fmt.Printf("  Created     : %s\n", whoisResult.Created)
+		fmt.Printf("  Expires     : %s\n", whoisResult.Expires)
+		fmt.Printf("  Name servers: %s\n", strings.Join(whoisResult.NameServers, ", "))
+	}
 
 	fmt.Println("\n[SUBDOMAINS])")
 	subdomains, err := certs.Lookup(*domain)
