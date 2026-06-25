@@ -9,6 +9,7 @@ import (
 	"github.com/pfei/pivoteer/internal/asn"
 	"github.com/pfei/pivoteer/internal/certs"
 	"github.com/pfei/pivoteer/internal/dns"
+	"github.com/pfei/pivoteer/internal/tls"
 	"github.com/pfei/pivoteer/internal/whois"
 )
 
@@ -36,7 +37,7 @@ func main() {
 	fmt.Printf("  TXT : %v\n", dnsResult.TXT)
 	fmt.Printf("  NS  : %v\n", dnsResult.NS)
 
-	// run WHOIS, CERTS, ASN concurrently
+	// run WHOIS, CERTS, ASN, TLS concurrently
 	type whoisOut struct {
 		res whois.Result
 		err error
@@ -49,10 +50,15 @@ func main() {
 		res asn.Result
 		err error
 	}
+	type tlsOut struct {
+		res tls.Result
+		err error
+	}
 
 	whoisCh := make(chan whoisOut, 1)
 	certsCh := make(chan certsOut, 1)
 	asnCh := make(chan asnOut, 1)
+	tlsCh := make(chan tlsOut, 1)
 
 	go func() {
 		res, err := whois.Lookup(*domain)
@@ -73,10 +79,16 @@ func main() {
 		asnCh <- asnOut{res, err}
 	}()
 
+	go func() {
+		res, err := tls.Lookup(*domain)
+		tlsCh <- tlsOut{res, err}
+	}()
+
 	// collect results
 	whoisResult := <-whoisCh
 	certsResult := <-certsCh
 	asnResult := <-asnCh
+	tlsResult := <-tlsCh
 
 	fmt.Println("\n[WHOIS]")
 	if whoisResult.err != nil {
@@ -95,6 +107,15 @@ func main() {
 		for _, sub := range certsResult.res {
 			fmt.Printf("  %s\n", sub)
 		}
+	}
+
+	fmt.Println("\n[TLS]")
+	if tlsResult.err != nil {
+		fmt.Fprintf(os.Stderr, "tls error: %v\n", tlsResult.err)
+	} else {
+		fmt.Printf("  Issuer  : %s\n", tlsResult.res.Issuer)
+		fmt.Printf("  Expires : %s\n", tlsResult.res.Expires)
+		fmt.Printf("  SANs    : %s\n", strings.Join(tlsResult.res.SANs, ", "))
 	}
 
 	fmt.Println("\n[ASN]")
