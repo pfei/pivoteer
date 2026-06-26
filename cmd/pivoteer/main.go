@@ -113,7 +113,19 @@ func main() {
 			asnCh <- asnOut{}
 			return
 		}
-		res, err := asn.Lookup(dnsResult.A[0])
+		// pick first IPv4
+		ip := ""
+		for _, a := range dnsResult.A {
+			if !strings.Contains(a, ":") {
+				ip = a
+				break
+			}
+		}
+		if ip == "" {
+			asnCh <- asnOut{}
+			return
+		}
+		res, err := asn.Lookup(ip)
 		asnCh <- asnOut{res, err}
 	}()
 
