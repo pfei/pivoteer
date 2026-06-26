@@ -59,7 +59,8 @@ func printReport(domain string, d dns.Result, w whois.Result, t tls.Result, subs
 
 func main() {
 	domain := flag.String("d", "", "target domain (e.g. lemonde.fr)")
-	jsonOut := flag.Bool("json", false, "output results as json")
+	jsonOut := flag.Bool("json", false, "output results as JSON")
+	outFile := flag.String("o", "", "write JSON output to file")
 	flag.Parse()
 
 	if *domain == "" {
@@ -67,20 +68,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Target: %s\n", *domain)
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
 	dnsResult, err := dns.Lookup(*domain)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "dns error: %v\n", err)
 		os.Exit(1)
 	}
-
-	fmt.Println("\n[DNS]")
-	fmt.Printf("  A   : %v\n", dnsResult.A)
-	fmt.Printf("  MX  : %v\n", dnsResult.MX)
-	fmt.Printf("  TXT : %v\n", dnsResult.TXT)
-	fmt.Printf("  NS  : %v\n", dnsResult.NS)
 
 	// run WHOIS, CERTS, ASN, TLS concurrently
 	type whoisOut struct {
@@ -135,7 +127,7 @@ func main() {
 	asnResult := <-asnCh
 	tlsResult := <-tlsCh
 
-	if *jsonOut {
+	if *jsonOut || *outFile != "" {
 		report := Report{
 			Domain:     *domain,
 			DNS:        dnsResult,
@@ -144,9 +136,23 @@ func main() {
 			Subdomains: certsResult.res,
 			ASN:        asnResult.res,
 		}
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		enc.Encode(report)
+
+		if *outFile != "" {
+			f, err := os.Create(*outFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "cannot create file: %v\n", err)
+				os.Exit(1)
+			}
+			defer f.Close()
+			enc := json.NewEncoder(f)
+			enc.SetIndent("", "  ")
+			enc.Encode(report)
+			fmt.Fprintf(os.Stderr, "output written to %s\n", *outFile)
+		} else {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			enc.Encode(report)
+		}
 	} else {
 		printReport(*domain, dnsResult, whoisResult.res, tlsResult.res, certsResult.res, asnResult.res)
 	}
