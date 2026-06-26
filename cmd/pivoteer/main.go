@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -13,8 +14,52 @@ import (
 	"github.com/pfei/pivoteer/internal/whois"
 )
 
+// Report aggregates all reconnaissance results for a domain.
+type Report struct {
+	Domain     string       `json:"domain"`
+	DNS        dns.Result   `json:"dns"`
+	WHOIS      whois.Result `json:"whois"`
+	TLS        tls.Result   `json:"tls"`
+	Subdomains []string     `json:"subdomains"`
+	ASN        asn.Result   `json:"asn"`
+}
+
+func printReport(domain string, d dns.Result, w whois.Result, t tls.Result, subs []string, a asn.Result) {
+	fmt.Printf("Target: %s\n", domain)
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	fmt.Println("\n[WHOIS]")
+	fmt.Printf("  Registrar   : %s\n", w.Registrar)
+	fmt.Printf("  Created     : %s\n", w.Created)
+	fmt.Printf("  Expires     : %s\n", w.Expires)
+	fmt.Printf("  Name servers: %s\n", strings.Join(w.NameServers, ", "))
+
+	fmt.Println("\n[DNS]")
+	fmt.Printf("  A   : %s\n", strings.Join(d.A, ", "))
+	fmt.Printf("  MX  : %s\n", strings.Join(d.MX, ", "))
+	fmt.Printf("  NS  : %s\n", strings.Join(d.NS, ", "))
+	fmt.Printf("  TXT : %s\n", strings.Join(d.TXT, ", "))
+
+	fmt.Println("\n[TLS]")
+	fmt.Printf("  Issuer  : %s\n", t.Issuer)
+	fmt.Printf("  Expires : %s\n", t.Expires)
+	fmt.Printf("  SANs    : %s\n", strings.Join(t.SANs, ", "))
+
+	fmt.Println("\n[SUBDOMAINS] (via hackertarget)")
+	for _, sub := range subs {
+		fmt.Printf("  %s\n", sub)
+	}
+
+	fmt.Println("\n[ASN]")
+	fmt.Printf("  IP      : %s\n", a.IP)
+	fmt.Printf("  Org     : %s\n", a.Org)
+	fmt.Printf("  Country : %s\n", a.Country)
+	fmt.Printf("  City    : %s\n", a.City)
+}
+
 func main() {
 	domain := flag.String("d", "", "target domain (e.g. lemonde.fr)")
+	jsonOut := flag.Bool("json", false, "output results as json")
 	flag.Parse()
 
 	if *domain == "" {
@@ -90,43 +135,19 @@ func main() {
 	asnResult := <-asnCh
 	tlsResult := <-tlsCh
 
-	fmt.Println("\n[WHOIS]")
-	if whoisResult.err != nil {
-		fmt.Fprintf(os.Stderr, "whois error: %v\n", whoisResult.err)
-	} else {
-		fmt.Printf("  Registrar   : %s\n", whoisResult.res.Registrar)
-		fmt.Printf("  Created     : %s\n", whoisResult.res.Created)
-		fmt.Printf("  Expires     : %s\n", whoisResult.res.Expires)
-		fmt.Printf("  Name servers: %s\n", strings.Join(whoisResult.res.NameServers, ", "))
-	}
-
-	fmt.Println("\n[SUBDOMAINS] (via hackertarget)")
-	if certsResult.err != nil {
-		fmt.Fprintf(os.Stderr, "certs error: %v\n", certsResult.err)
-	} else {
-		for _, sub := range certsResult.res {
-			fmt.Printf("  %s\n", sub)
+	if *jsonOut {
+		report := Report{
+			Domain:     *domain,
+			DNS:        dnsResult,
+			WHOIS:      whoisResult.res,
+			TLS:        tlsResult.res,
+			Subdomains: certsResult.res,
+			ASN:        asnResult.res,
 		}
-	}
-
-	fmt.Println("\n[TLS]")
-	if tlsResult.err != nil {
-		fmt.Fprintf(os.Stderr, "tls error: %v\n", tlsResult.err)
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(report)
 	} else {
-		fmt.Printf("  Issuer  : %s\n", tlsResult.res.Issuer)
-		fmt.Printf("  Expires : %s\n", tlsResult.res.Expires)
-		fmt.Printf("  SANs    : %s\n", strings.Join(tlsResult.res.SANs, ", "))
-	}
-
-	fmt.Println("\n[ASN]")
-	if asnResult.err != nil {
-		fmt.Fprintf(os.Stderr, "asn error: %v\n", asnResult.err)
-	} else if asnResult.res.IP == "" {
-		fmt.Println("  no A record found")
-	} else {
-		fmt.Printf("  IP      : %s\n", asnResult.res.IP)
-		fmt.Printf("  Org     : %s\n", asnResult.res.Org)
-		fmt.Printf("  Country : %s\n", asnResult.res.Country)
-		fmt.Printf("  City    : %s\n", asnResult.res.City)
+		printReport(*domain, dnsResult, whoisResult.res, tlsResult.res, certsResult.res, asnResult.res)
 	}
 }
