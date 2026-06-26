@@ -7,10 +7,10 @@ import (
 
 // Result holds all DNS records for a domain.
 type Result struct {
-	A   []string
-	MX  []string
-	TXT []string
-	NS  []string
+	A   []string `json:"a"`
+	MX  []string `json:"mx"`
+	TXT []string `json:"txt"`
+	NS  []string `json:"ns"`
 }
 
 // Lookup queries all DNS record types for the given domain.
