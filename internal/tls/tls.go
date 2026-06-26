@@ -8,9 +8,9 @@ import (
 
 // Result holds TLS certificate data.
 type Result struct {
-	Issuer  string
-	Expires string
-	SANs    []string
+	Issuer  string   `json:"issuer"`
+	Expires string   `json:"expires"`
+	SANs    []string `json:"sans"`
 }
 
 // Lookup connects to domain:443 and extracts certificate info.
