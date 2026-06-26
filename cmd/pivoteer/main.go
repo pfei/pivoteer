@@ -61,6 +61,7 @@ func main() {
 	domain := flag.String("d", "", "target domain (e.g. lemonde.fr)")
 	jsonOut := flag.Bool("json", false, "output results as JSON")
 	outFile := flag.String("o", "", "write JSON output to file")
+	bruteForce := flag.Bool("bruteforce", false, "enable DNS bruteforce subdomain discovery")
 	flag.Parse()
 
 	if *domain == "" {
@@ -103,7 +104,7 @@ func main() {
 	}()
 
 	go func() {
-		res, err := certs.Lookup(*domain)
+		res, err := certs.Lookup(*domain, *bruteForce)
 		certsCh <- certsOut{res, err}
 	}()
 
