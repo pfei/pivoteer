@@ -46,11 +46,11 @@ func referralServer(response string) string {
 
 // Result holds parsed WHOIS data.
 type Result struct {
-	Registrar   string
-	Created     string
-	Expires     string
-	NameServers []string
-	Raw         string
+	Registrar   string   `json:"registrar"`
+	Created     string   `json:"created"`
+	Expires     string   `json:"expires"`
+	NameServers []string `json:"name_servers"`
+	Raw         string   `json:"-"` // json encoder will ignore this field
 }
 
 // parse extracts key fields from raw whois text.

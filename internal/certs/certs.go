@@ -45,6 +45,11 @@ func Lookup(domain string) ([]string, error) {
 	for name := range seen {
 		results = append(results, name)
 	}
+
+	if len(results) == 1 && strings.Contains(results[0], "API count exceeded") {
+		return nil, fmt.Errorf("hackertarget rate limit exceeded")
+	}
+
 	sort.Strings(results)
 
 	return results, nil
